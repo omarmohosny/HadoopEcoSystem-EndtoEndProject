@@ -84,3 +84,11 @@ def test_curate_columns(spark):
         "event_ts", "raw_severity", "hostname", "program", "service", "source", "message", "source_format",
         "kafka_topic", "kafka_partition", "kafka_offset", "kafka_timestamp", "raw_key", "dedup_key",
         "event_date", "severity"]
+
+
+def test_curate_accepts_legacy_files_without_raw_key_column(spark):
+    # Parquet written before the classifier set keys has no raw_key column at all
+    legacy = df(spark, [row(1), row(1), row(2)]).drop("raw_key")
+    out = curate(legacy).collect()
+    assert sorted(r["kafka_offset"] for r in out) == [1, 2]
+    assert all(r["raw_key"] is None for r in out)

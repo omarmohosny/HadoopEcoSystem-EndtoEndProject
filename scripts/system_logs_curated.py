@@ -59,6 +59,8 @@ def dedup(df):
 
 
 def curate(df):
+    if "raw_key" not in df.columns:  # Parquet written before the classifier set keys
+        df = df.withColumn("raw_key", F.lit(None).cast("string"))
     return dedup(normalize(drop_noise(df))).select(*CURATED_COLUMNS)
 
 
@@ -74,7 +76,8 @@ def main():
     )
     spark.sparkContext.setLogLevel("WARN")
 
-    curated = curate(spark.read.parquet(SOURCE_PATH))
+    # mergeSchema: old files lack raw_key, newer ones have it
+    curated = curate(spark.read.option("mergeSchema", "true").parquet(SOURCE_PATH))
     if args.since:
         curated = curated.where(F.col("event_date") >= args.since)
     curated = curated.cache()
