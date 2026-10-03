@@ -107,6 +107,11 @@ N=$(since_count 'sudo|su|unix_chkpwd'); check "no sudo/authpriv lines ingested s
 MARK="HYGIENE_PROBE_$(date +%s)"; logger -p user.notice "$MARK"; sleep 3
 check "ordinary syslog messages still reach logs.txt" sudo -u hadoop grep -q "$MARK" /home/hadoop/kafka/logs.txt
 
+echo "== network exposure"
+# Kafka Connect REST can create connectors that read/write files as hadoop: loopback only
+check "Connect REST :8083 listens on loopback only" bash -c '
+  l=$(ss -Hlnt "sport = :8083" | awk "{print \$4}"); [ -n "$l" ] && ! grep -qvE "^(127\.0\.0\.1|\[::1\]|\[::ffff:127\.0\.0\.1\]):8083$" <<< "$l"'
+
 echo "== service health"
 check "kafka answers on 9092"     H 'kafka-broker-api-versions.sh --bootstrap-server localhost:9092'
 check "connect REST lists local-file-source" bash -c 'curl -s localhost:8083/connectors | grep -q local-file-source'
