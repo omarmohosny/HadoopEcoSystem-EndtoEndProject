@@ -1,0 +1,23 @@
+[Unit]
+Description=Spark Structured Streaming: severity topics -> Parquet/HDFS -> Hive system_logs
+Requires=kafka.service hadoop-hdfs.service
+After=kafka.service hadoop-hdfs.service system-log-classifier.service
+
+[Service]
+Type=simple
+User=hadoop
+Group=hadoop
+EnvironmentFile=/etc/hadoop-stack.env
+WorkingDirectory=/home/hadoop/kafka
+ExecStartPre=/bin/bash -c 'for i in $$(seq 1 90); do (echo > /dev/tcp/localhost/9092) 2>/dev/null && exit 0; sleep 2; done; echo "Kafka not reachable on 9092"; exit 1'
+ExecStart=/home/hadoop/spark/bin/spark-submit --master local[2] --driver-memory 1g --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.2.0 /home/hadoop/kafka/scripts/system_logs_to_hive.py
+PrivateTmp=no
+StandardOutput=append:/var/log/hadoop-stack/spark_system_logs.log
+StandardError=append:/var/log/hadoop-stack/spark_system_logs.log
+SuccessExitStatus=143
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

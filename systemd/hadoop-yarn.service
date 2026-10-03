@@ -1,0 +1,21 @@
+[Unit]
+Description=Hadoop YARN (ResourceManager, NodeManager)
+Requires=hadoop-hdfs.service
+After=hadoop-hdfs.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=hadoop
+Group=hadoop
+EnvironmentFile=/etc/hadoop-stack.env
+PrivateTmp=no
+ExecStart=/home/hadoop/hadoop/bin/yarn --daemon start resourcemanager
+ExecStart=/home/hadoop/hadoop/bin/yarn --daemon start nodemanager
+ExecStop=/home/hadoop/hadoop/bin/yarn --daemon stop nodemanager
+ExecStop=/home/hadoop/hadoop/bin/yarn --daemon stop resourcemanager
+TimeoutStartSec=180
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

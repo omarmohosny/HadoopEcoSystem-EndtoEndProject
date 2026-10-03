@@ -1,0 +1,22 @@
+[Unit]
+Description=System log severity classifier (system-logs-raw -> severity topics)
+Requires=kafka.service
+After=kafka.service kafka-connect.service
+
+[Service]
+Type=simple
+User=hadoop
+Group=hadoop
+WorkingDirectory=/home/hadoop/kafka
+ExecStartPre=/bin/bash -c 'for i in $$(seq 1 90); do (echo > /dev/tcp/localhost/9092) 2>/dev/null && exit 0; sleep 2; done; echo "Kafka not reachable on 9092"; exit 1'
+ExecStart=/usr/bin/python3 -u /home/hadoop/kafka/scripts/system_log_classifier.py
+# SIGINT = Ctrl+C: runs the script's KeyboardInterrupt path (flush + commit)
+KillSignal=SIGINT
+TimeoutStopSec=30
+StandardOutput=append:/var/log/hadoop-stack/classifier.log
+StandardError=append:/var/log/hadoop-stack/classifier.log
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

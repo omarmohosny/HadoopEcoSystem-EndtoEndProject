@@ -1,0 +1,22 @@
+[Unit]
+Description=Kafka Connect standalone (local-file-source: logs.txt -> system-logs-raw)
+Requires=kafka.service
+After=kafka.service
+
+[Service]
+Type=simple
+User=hadoop
+Group=hadoop
+WorkingDirectory=/home/hadoop/kafka
+Environment=JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+ExecStartPre=/bin/bash -c 'for i in $$(seq 1 90); do (echo > /dev/tcp/localhost/9092) 2>/dev/null && exit 0; sleep 2; done; echo "Kafka not reachable on 9092"; exit 1'
+ExecStart=/home/hadoop/kafka/bin/connect-standalone.sh /home/hadoop/kafka/config/connect-standalone.properties /home/hadoop/kafka/config/omarconnector.properties
+# Offsets file is /tmp/connect.offsets: must see the real /tmp
+PrivateTmp=no
+SuccessExitStatus=143
+TimeoutStopSec=120
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

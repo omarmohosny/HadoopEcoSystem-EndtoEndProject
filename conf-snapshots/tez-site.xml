@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <property>
+        <name>tez.lib.uris</name>
+        <value>${fs.defaultFS}/apps/tez/tez.tar.gz</value>
+    </property>
+
+    <property>
+        <name>tez.use.cluster.hadoop-libs</name>
+        <value>false</value>
+    </property>
+
+  <!-- Tez application master container -->
+  <property>
+    <name>tez.am.resource.memory.mb</name>
+    <value>512</value>
+  </property>
+  <!-- 80% of the AM container -->
+  <property>
+    <name>tez.am.launch.cmd-opts</name>
+    <value>-Xmx410m</value>
+  </property>
+  <!-- Tez task container -->
+  <property>
+    <name>tez.task.resource.memory.mb</name>
+    <value>512</value>
+  </property>
+  <!-- 80% of the task container -->
+  <property>
+    <name>tez.task.launch.cmd-opts</name>
+    <value>-Xmx410m</value>
+  </property>
+</configuration>

@@ -1,0 +1,23 @@
+[Unit]
+Description=Apache Kafka 4.2.2 (KRaft combined broker/controller)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=hadoop
+Group=hadoop
+WorkingDirectory=/home/hadoop/kafka
+Environment=JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+ExecStart=/home/hadoop/kafka/bin/kafka-server-start.sh /home/hadoop/kafka/config/server.properties
+# Data lives in /tmp/kraft-combined-logs: must see the real /tmp
+PrivateTmp=no
+# Kafka shuts down cleanly on SIGTERM (exit 143)
+SuccessExitStatus=143
+TimeoutStopSec=180
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=100000
+
+[Install]
+WantedBy=multi-user.target

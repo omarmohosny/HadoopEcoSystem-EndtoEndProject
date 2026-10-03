@@ -1,0 +1,24 @@
+[Unit]
+Description=Hive 4.2.1 HiveServer2 (embedded Derby metastore, Tez on YARN)
+Requires=hadoop-hdfs.service
+Wants=hadoop-yarn.service
+After=hadoop-hdfs.service hadoop-yarn.service
+
+[Service]
+Type=simple
+User=hadoop
+Group=hadoop
+EnvironmentFile=/etc/hadoop-stack.env
+# Derby metastore is the relative path "metastore_db": must start from /home/hadoop
+WorkingDirectory=/home/hadoop
+ExecStart=/home/hadoop/hive/bin/hive --service hiveserver2
+PrivateTmp=no
+StandardOutput=append:/var/log/hadoop-stack/hiveserver2.out
+StandardError=append:/var/log/hadoop-stack/hiveserver2.out
+SuccessExitStatus=143
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

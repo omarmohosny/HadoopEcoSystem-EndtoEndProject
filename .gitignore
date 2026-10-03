@@ -1,0 +1,22 @@
+# This directory is a full Kafka installation: ignore everything, then whitelist project files.
+/*
+!/.gitignore
+!/README.md
+!/docs/
+!/scripts/
+!/tests/
+!/systemd/
+!/rsyslog/
+!/conf-snapshots/
+!/config/
+/config/*
+!/config/server.properties
+!/config/connect-standalone.properties
+!/config/omarconnector.properties
+
+# never track
+__pycache__/
+*.pyc
+*.bak
+*.bak.*
+.pytest_cache/
