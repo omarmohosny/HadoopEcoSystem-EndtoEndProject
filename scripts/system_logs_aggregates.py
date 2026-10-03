@@ -1,5 +1,6 @@
 """
-Batch aggregation layer over the Hive `system_logs` Parquet data.
+Batch aggregation layer over the curated `system_logs_curated` Parquet data
+(de-duplicated, noise-free; see system_logs_curated.py).
 
 Builds (Parquet on HDFS, Hive external tables partitioned by event_date):
   system_logs_hourly         hour x severity x source x host event counts
@@ -21,6 +22,7 @@ from pyspark.sql import functions as F
 
 WAREHOUSE = "hdfs://localhost:9000/user/hive/warehouse"
 SOURCE_PATH = f"{WAREHOUSE}/system_logs"
+CURATED_PATH = f"{WAREHOUSE}/system_logs_curated"
 HOURLY_PATH = f"{WAREHOUSE}/system_logs_hourly"
 DAILY_SOURCES_PATH = f"{WAREHOUSE}/system_logs_daily_sources"
 
@@ -42,6 +44,18 @@ def normalize(df):
                 F.lit("unknown"),
             ),
         )
+    )
+
+
+def from_curated(df):
+    """Curated rows already carry event_ts, event_date and source: add event_hour.
+
+    event_date comes back as DATE (Spark infers partition column types from
+    event_date=YYYY-MM-DD directories); normalise it to the string the tables use.
+    """
+    return (
+        df.withColumn("event_date", F.col("event_date").cast("string"))
+        .withColumn("event_hour", F.date_trunc("hour", F.col("event_ts")))
     )
 
 
@@ -101,7 +115,7 @@ def main():
     )
     spark.sparkContext.setLogLevel("WARN")
 
-    logs = normalize(spark.read.parquet(SOURCE_PATH))
+    logs = from_curated(spark.read.parquet(CURATED_PATH))
     if args.since:
         logs = logs.where(F.col("event_date") >= args.since)
     logs = logs.cache()

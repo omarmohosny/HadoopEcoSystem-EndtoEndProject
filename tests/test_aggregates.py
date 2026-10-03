@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 
-from system_logs_aggregates import daily_source_stats, hourly_counts, normalize
+from system_logs_aggregates import daily_source_stats, from_curated, hourly_counts, normalize
 
 SCHEMA = (
     "event_time timestamp, severity string, hostname string, program string, "
@@ -120,3 +120,27 @@ def test_daily_columns_match_hive_table(spark):
     agg = daily_source_stats(normalize(logs(spark, [r(KTS, "normal")])))
     assert agg.columns == ["source", "total_events", "error_events", "critical_events",
                            "warning_events", "error_rate", "error_rank", "event_date"]
+
+
+# ---------------------------------------------------------------- curated input
+
+CURATED_SCHEMA = "event_ts timestamp, severity string, source string, hostname string, event_date string"
+
+
+def test_from_curated_adds_event_hour_and_feeds_hourly_counts(spark):
+    rows = [(datetime(2026, 10, 4, 10, 5), "error", "sshd", "h", "2026-10-04"),
+            (datetime(2026, 10, 4, 10, 55), "error", "sshd", "h", "2026-10-04")]
+    cur = from_curated(spark.createDataFrame(rows, CURATED_SCHEMA))
+    assert cur.collect()[0]["event_hour"] == datetime(2026, 10, 4, 10, 0)
+    out = hourly_counts(cur).collect()
+    assert len(out) == 1 and out[0]["event_count"] == 2 and out[0]["source"] == "sshd"
+
+
+def test_from_curated_normalises_inferred_date_partition_to_string(spark):
+    # Spark reads event_date=2026-10-04 directories back as DATE (partition type inference)
+    from datetime import date
+    rows = [(datetime(2026, 10, 4, 10, 5), "error", "sshd", "h", date(2026, 10, 4))]
+    cur = from_curated(spark.createDataFrame(
+        rows, "event_ts timestamp, severity string, source string, hostname string, event_date date"))
+    assert cur.collect()[0]["event_date"] == "2026-10-04"
+    assert dict(daily_source_stats(cur).dtypes)["event_date"] == "string"

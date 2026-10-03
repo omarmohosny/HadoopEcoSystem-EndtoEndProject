@@ -43,16 +43,19 @@ expect_empty "hourly total == daily total for every date" "
   FULL OUTER JOIN
     (SELECT event_date, SUM(total_events) n FROM default.system_logs_daily_sources GROUP BY event_date) d
   ON h.event_date = d.event_date WHERE h.n IS NULL OR d.n IS NULL OR h.n <> d.n;"
-expect_empty "completed days: hourly total == system_logs rows" "
-  SELECT s.d, s.n, h.n FROM
-    (SELECT date_format(coalesce(event_time, kafka_timestamp),'yyyy-MM-dd') d, COUNT(*) n FROM default.system_logs GROUP BY date_format(coalesce(event_time, kafka_timestamp),'yyyy-MM-dd')) s
+expect_empty "completed days: hourly total == curated rows" "
+  SELECT c.event_date, c.n, h.n FROM
+    (SELECT event_date, COUNT(*) n FROM default.system_logs_curated GROUP BY event_date) c
   LEFT JOIN (SELECT event_date, SUM(event_count) n FROM default.system_logs_hourly GROUP BY event_date) h
-  ON s.d = h.event_date WHERE s.d < '$TODAY' AND (h.n IS NULL OR h.n <> s.n);"
-expect_empty "today: hourly total <= system_logs rows (stream keeps adding)" "
-  SELECT s.n, h.n FROM
-    (SELECT COUNT(*) n FROM default.system_logs WHERE date_format(coalesce(event_time, kafka_timestamp),'yyyy-MM-dd') = '$TODAY') s
+  ON c.event_date = h.event_date WHERE c.event_date < '$TODAY' AND (h.n IS NULL OR h.n <> c.n);"
+expect_empty "today: hourly total <= curated rows" "
+  SELECT c.n, h.n FROM
+    (SELECT COUNT(*) n FROM default.system_logs_curated WHERE event_date = '$TODAY') c
   CROSS JOIN (SELECT COALESCE(SUM(event_count),0) n FROM default.system_logs_hourly WHERE event_date = '$TODAY') h
-  WHERE h.n > s.n;"
+  WHERE h.n > c.n;"
+expect_empty "aggregates contain no self-ingested or auth noise" "
+  SELECT source, SUM(event_count) FROM default.system_logs_hourly
+  WHERE source LIKE 'kafka-%' OR source LIKE 'connect-%' OR source IN ('sudo','su','unix_chkpwd') GROUP BY source;"
 
 echo "== derived values"
 expect_empty "error_rank is 1..n with no gaps or duplicates per day" "
