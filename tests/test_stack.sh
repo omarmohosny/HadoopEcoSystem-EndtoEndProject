@@ -48,7 +48,7 @@ done
 # Files systemd appends service output to must be var_log_t
 for f in /home/hadoop/kafka/logs/classifier.log /home/hadoop/kafka/logs/spark_system_logs.log \
          /home/hadoop/hive/hiveserver2.out /home/hadoop/kafka/logs.txt; do
-  check "$(basename $f) is labelled var_log_t" bash -c "sudo -u hadoop stat -c %C $f | grep -q ':var_log_t:'"
+  check "$(basename $f) is labelled var_log_t" bash -c "sudo -u hadoop stat -L -c %C $f | grep -q ':var_log_t:'"
 done
 # Every service process should run in the standard domain for third-party services
 for pat in proc_namenode proc_datanode proc_secondarynamenode proc_resourcemanager proc_nodemanager \
@@ -86,6 +86,26 @@ for line in sys.stdin:
 ' "${SINCE:-0}" | sort -u)
 if [ -z "$DENIALS" ]; then ok "no SELinux denials since the stack started ($(date -d @${SINCE:-0} '+%F %T'))"
 else bad "SELinux denials since the stack started:"; echo "$DENIALS" | sed 's/^/          /'; fi
+
+echo "== log source hygiene (rsyslog -> logs.txt)"
+# The pipeline must not ingest its own console output (feedback loop) nor authpriv/sudo lines (sensitive)
+RSYSLOG_SINCE=$(date -d "$(systemctl show -p ActiveEnterTimestamp --value rsyslog)" +%s 2>/dev/null || echo 0)
+since_count() {  # since_count <program regex>: lines from matching programs written after rsyslog started
+  sudo -u hadoop grep -hE "^[A-Z][a-z]{2} +[0-9]+ [0-9:]{8} severity=[a-z]+ hostname=[^ ]+ program=($1) " /home/hadoop/kafka/logs.txt | python3 -c '
+import sys, time
+since = int(sys.argv[1]); year = time.localtime().tm_year; n = 0
+for line in sys.stdin:
+    try:
+        t = time.mktime(time.strptime(f"{year} " + " ".join(line.split()[:3]), "%Y %b %d %H:%M:%S"))
+    except ValueError:
+        continue
+    n += t >= since
+print(n)' "$RSYSLOG_SINCE"
+}
+N=$(since_count 'kafka-server-start\.sh|connect-standalone\.sh'); check "no Kafka/Connect console lines ingested since rsyslog start ($N found)" test "$N" -eq 0
+N=$(since_count 'sudo|su|unix_chkpwd'); check "no sudo/authpriv lines ingested since rsyslog start ($N found)" test "$N" -eq 0
+MARK="HYGIENE_PROBE_$(date +%s)"; logger -p user.notice "$MARK"; sleep 3
+check "ordinary syslog messages still reach logs.txt" sudo -u hadoop grep -q "$MARK" /home/hadoop/kafka/logs.txt
 
 echo "== service health"
 check "kafka answers on 9092"     H 'kafka-broker-api-versions.sh --bootstrap-server localhost:9092'
