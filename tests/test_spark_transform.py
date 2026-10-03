@@ -10,13 +10,15 @@ def connect_wrap(line):
     return json.dumps({"schema": {"type": "string", "optional": False}, "payload": line})
 
 
-def kafka_rows(spark, records):
+def kafka_rows(spark, records, key=None):
     """records: list of (topic, value_str, offset) -> DataFrame shaped like the Kafka source."""
     rows = [
-        (bytearray(value.encode()), topic, 0, offset, datetime(2026, 10, 4, 0, 2, 30))
+        (bytearray(key.encode()) if key else None, bytearray(value.encode()), topic, 0, offset,
+         datetime(2026, 10, 4, 0, 2, 30))
         for topic, value, offset in records
     ]
-    return spark.createDataFrame(rows, "value binary, topic string, partition int, offset long, timestamp timestamp")
+    return spark.createDataFrame(
+        rows, "key binary, value binary, topic string, partition int, offset long, timestamp timestamp")
 
 
 def one(spark, topic, value):
@@ -84,4 +86,16 @@ def test_output_columns_match_hive_table(spark):
     cols = transform(kafka_rows(spark, [("system-logs-normal", connect_wrap("x"), 0)])).columns
     assert cols == ["event_time", "raw_severity", "hostname", "program", "service", "message",
                     "source_format", "raw_payload", "kafka_topic", "kafka_partition",
-                    "kafka_offset", "kafka_timestamp", "ingest_time", "severity"]
+                    "kafka_offset", "kafka_timestamp", "ingest_time", "raw_key", "severity"]
+
+
+def test_raw_key_is_decoded_from_kafka_message_key(spark):
+    line = "Oct  4 00:00:00 severity=err hostname=h program=p message=m"
+    r = transform(kafka_rows(spark, [("system-logs-error", connect_wrap(line), 3)], key="raw:0:42")).collect()[0]
+    assert r["raw_key"] == "raw:0:42"
+
+
+def test_raw_key_is_null_for_unkeyed_legacy_messages(spark):
+    line = "Oct  4 00:00:00 severity=err hostname=h program=p message=m"
+    r = transform(kafka_rows(spark, [("system-logs-error", connect_wrap(line), 3)])).collect()[0]
+    assert r["raw_key"] is None

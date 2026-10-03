@@ -74,6 +74,8 @@ def transform(kafka_df):
         F.col("offset").alias("kafka_offset"),
         F.col("timestamp").alias("kafka_timestamp"),
         F.current_timestamp().alias("ingest_time"),
+        # Classifier key raw:<partition>:<offset> (NULL for messages produced before keys existed)
+        F.col("key").cast("string").alias("raw_key"),
         # Severity category assigned by the Python classifier (topic suffix)
         F.regexp_extract(F.col("topic"), r"^system-logs-(\w+)$", 1).alias("severity"),
     )

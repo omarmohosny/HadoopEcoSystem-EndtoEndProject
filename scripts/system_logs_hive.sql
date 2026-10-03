@@ -13,7 +13,8 @@ CREATE EXTERNAL TABLE IF NOT EXISTS default.system_logs (
   kafka_partition  INT,
   kafka_offset     BIGINT,
   kafka_timestamp  TIMESTAMP,
-  ingest_time      TIMESTAMP
+  ingest_time      TIMESTAMP,
+  raw_key          STRING
 )
 PARTITIONED BY (severity STRING)
 STORED AS PARQUET
@@ -26,3 +27,6 @@ ALTER TABLE default.system_logs ADD IF NOT EXISTS
   PARTITION (severity='error')
   PARTITION (severity='critical')
   PARTITION (severity='debug');
+
+-- Upgrade for tables created before raw_key existed (Parquet columns map by name; old files read NULL)
+-- ALTER TABLE default.system_logs ADD COLUMNS (raw_key STRING);
