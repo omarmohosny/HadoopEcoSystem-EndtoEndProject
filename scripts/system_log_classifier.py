@@ -1,9 +1,8 @@
 import json
 import re
-import signal
-import sys
 
 from kafka import KafkaConsumer, KafkaProducer
+from kafka.structs import OffsetAndMetadata, TopicPartition
 
 
 BOOTSTRAP_SERVERS = "localhost:9092"
@@ -17,6 +16,16 @@ TOPICS = {
     "critical": "system-logs-critical",
     "debug": "system-logs-debug",
 }
+
+CONSUMER_CONFIG = {
+    "bootstrap_servers": BOOTSTRAP_SERVERS,
+    "group_id": "system-log-classifier-v1",
+    "auto_offset_reset": "earliest",
+    # commit only after the routed copy is acknowledged (no silent loss)
+    "enable_auto_commit": False,
+}
+
+SEND_TIMEOUT_S = 10
 
 
 def normalize_severity(value):
@@ -49,7 +58,7 @@ def classify_message(raw_message):
     """
     Classify a Kafka Connect FileStreamSource message.
 
-    Kafka Connect StringConverter produces messages like:
+    Kafka Connect JsonConverter (schemas.enable=true) produces messages like:
 
     {
         "schema": {...},
@@ -132,6 +141,32 @@ def classify_message(raw_message):
     return None, raw_message
 
 
+def process_record(record, producer, consumer):
+    """
+    Classify one raw record, deliver it, then commit its offset.
+
+    The copy is keyed by the raw-topic coordinates so a re-emit after a crash
+    carries the same key and can be de-duplicated downstream. The offset is
+    committed only after the broker acknowledges the send; a failed send
+    raises and the record is re-processed after restart.
+    Returns the destination topic, or None for unrecognised records.
+    """
+    severity, output_message = classify_message(record.value)
+    destination_topic = TOPICS[severity] if severity else None
+
+    if destination_topic:
+        producer.send(
+            destination_topic,
+            value=output_message,
+            key=f"raw:{record.partition}:{record.offset}",
+        ).get(timeout=SEND_TIMEOUT_S)
+
+    consumer.commit({
+        TopicPartition(record.topic, record.partition): OffsetAndMetadata(record.offset + 1, None, -1)
+    })
+    return destination_topic
+
+
 def main():
 
     print("=" * 70)
@@ -145,15 +180,13 @@ def main():
 
     consumer = KafkaConsumer(
         RAW_TOPIC,
-        bootstrap_servers=BOOTSTRAP_SERVERS,
-        group_id="system-log-classifier-v1",
-        auto_offset_reset="earliest",
-        enable_auto_commit=True,
         value_deserializer=lambda value: value.decode("utf-8"),
+        **CONSUMER_CONFIG,
     )
 
     producer = KafkaProducer(
         bootstrap_servers=BOOTSTRAP_SERVERS,
+        key_serializer=lambda key: key.encode("utf-8"),
         value_serializer=lambda value: value.encode("utf-8"),
     )
 
@@ -163,28 +196,17 @@ def main():
 
     try:
         for record in consumer:
+            destination_topic = process_record(record, producer, consumer)
 
-            raw_message = record.value
-
-            severity, output_message = classify_message(raw_message)
-
-            if severity is None:
+            if destination_topic is None:
                 print(
                     f"[SKIPPED] partition={record.partition} "
                     f"offset={record.offset} "
-                    f"message={raw_message}"
+                    f"message={record.value}"
                 )
                 continue
 
-            destination_topic = TOPICS[severity]
-
-            producer.send(
-                destination_topic,
-                value=output_message,
-            )
-
-            producer.flush()
-
+            severity = next(k for k, v in TOPICS.items() if v == destination_topic)
             print(
                 f"[{severity.upper():8}] "
                 f"partition={record.partition} "
