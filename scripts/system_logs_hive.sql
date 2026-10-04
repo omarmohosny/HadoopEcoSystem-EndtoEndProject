@@ -28,5 +28,12 @@ ALTER TABLE default.system_logs ADD IF NOT EXISTS
   PARTITION (severity='critical')
   PARTITION (severity='debug');
 
--- Upgrade for tables created before raw_key existed (Parquet columns map by name; old files read NULL)
+-- Upgrade for tables created before raw_key existed (Parquet columns map by name; old files read NULL).
+-- Existing partitions keep their own column list, so add the column to each of them too
+-- (ALTER TABLE ... ADD COLUMNS without CASCADE only changes the table-level schema):
 -- ALTER TABLE default.system_logs ADD COLUMNS (raw_key STRING);
+-- ALTER TABLE default.system_logs PARTITION (severity='normal')   ADD COLUMNS (raw_key STRING);
+-- ALTER TABLE default.system_logs PARTITION (severity='warning')  ADD COLUMNS (raw_key STRING);
+-- ALTER TABLE default.system_logs PARTITION (severity='error')    ADD COLUMNS (raw_key STRING);
+-- ALTER TABLE default.system_logs PARTITION (severity='critical') ADD COLUMNS (raw_key STRING);
+-- ALTER TABLE default.system_logs PARTITION (severity='debug')    ADD COLUMNS (raw_key STRING);

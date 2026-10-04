@@ -134,6 +134,9 @@ if [ "${1:-}" != "--no-e2e" ]; then
   for s in info warning err crit debug; do
     check "${RUN}_$s landed in Hive partition ${EXP[$s]}" bash -c "echo '$got' | grep -qx '${RUN}_$s,${EXP[$s]}'"
   done
+  KEYS=$(H "beeline -u jdbc:hive2://localhost:10000 -n hadoop --silent=true --outputformat=csv2 --showHeader=false \
+    -e \"SELECT raw_key FROM default.system_logs WHERE message LIKE '${RUN}_%';\" 2>/dev/null" | grep -cE '^raw:[0-9]+:[0-9]+$')
+  check "${RUN} records carry the classifier raw_key in Hive (${KEYS}/5)" test "$KEYS" -eq 5
 fi
 
 echo
