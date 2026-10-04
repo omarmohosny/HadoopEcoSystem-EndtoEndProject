@@ -49,13 +49,22 @@ for d in secondarynamenode datanode namenode; do
 done
 
 echo "[4/5] Starting services in dependency order"
+echo "  (each start can take several minutes if HDFS is stuck in safe mode: up to 6 min for hdfs/hive, 9 for spark)"
+# A unit that fails to start (e.g. HDFS stuck in safe mode) must not abort the rest or hide the status
+FAILED=""
 for u in $UNITS_START_ORDER; do
   echo "  starting $u"
-  systemctl start "$u.service"
+  systemctl reset-failed "$u.service" 2>/dev/null || true   # clear 'failed' left by a previous run
+  systemctl start "$u.service" || { echo "  WARNING: $u failed to start (systemctl status $u; journalctl -u $u)"; FAILED="$FAILED $u"; }
 done
 sleep 20
 
 echo "[5/5] Status"
 for u in $UNITS_START_ORDER; do printf '  %-24s %s / %s\n' "$u" "$(systemctl is-active $u)" "$(systemctl is-enabled $u)"; done
+# 'active' only means the daemons were launched: report whether HDFS can actually accept writes
+SM=$(as_hadoop hdfs dfsadmin -safemode get 2>/dev/null || true)
+echo "  HDFS: ${SM:-unreachable}"
+case "$SM" in *OFF*) ;; *) echo "  WARNING: HDFS is in safe mode or unreachable - Spark/Hive wait for it (see: hdfs dfsadmin -report, hdfs fsck /)";; esac
 echo
 echo "Host: $(hostname)  IP: $(hostname -I | awk '{print $1}')  machine-id: $(cat /etc/machine-id)"
+[ -z "$FAILED" ] || { echo "WARNING: failed to start:$FAILED"; exit 1; }

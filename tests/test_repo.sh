@@ -16,7 +16,7 @@ echo "== project files are tracked"
 for f in scripts/system_log_classifier.py scripts/system_logs_to_hive.py scripts/system_logs_aggregates.py \
          scripts/system_logs_hive.sql scripts/system_logs_aggregates_hive.sql scripts/validate_system_logs.sh \
          tests/conftest.py tests/test_classifier.py tests/test_spark_transform.py tests/test_aggregates.py \
-         tests/test_stack.sh tests/test_aggregates.sh tests/test_yarn_memory.sh tests/test_repo.sh \
+         tests/test_stack.sh tests/test_aggregates.sh tests/test_yarn_memory.sh tests/test_repo.sh tests/test_systemd_units.sh tests/test_install.sh \
          systemd/install.sh systemd/hadoop-stack.env systemd/kafka.service systemd/hadoop-hdfs.service \
          config/server.properties config/connect-standalone.properties config/omarconnector.properties \
          rsyslog/kafka-system-logs.conf conf-snapshots/yarn-site.xml conf-snapshots/tez-site.xml conf-snapshots/hive-site.xml \
