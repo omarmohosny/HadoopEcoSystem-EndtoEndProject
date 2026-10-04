@@ -80,10 +80,13 @@ sudo -u hadoop beeline -u jdbc:hive2://localhost:10000 -n hadoop \
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | start/stop order, health checks, runbooks, known issues |
 | [docs/TESTING.md](docs/TESTING.md) | test suites, how to run them, how they were validated |
 | [docs/INCIDENT-2026-10-04.md](docs/INCIDENT-2026-10-04.md) | hard reset → HDFS safe mode → recovery, and the fixes |
+| [docs/DEPLOYMENT-VERIFICATION.md](docs/DEPLOYMENT-VERIFICATION.md) | systemd install and reboot test, with evidence |
 
 ## Status and known limitations
+- The whole stack is supervised by systemd and was verified to come back by itself after a clean reboot
+  (see [docs/DEPLOYMENT-VERIFICATION.md](docs/DEPLOYMENT-VERIFICATION.md)). Behaviour after a hard power loss has not been re-tested.
 - Single node: replication factor 1 everywhere. It demonstrates the architecture, not high availability.
-- Memory is tight (about 1.5 GB available with the full stack running).
+- Memory is tight (about 2.5 GB available with the full stack running).
 - The raw table `default.system_logs` is not de-duplicated; use `system_logs_curated` for analytics.
 - Older Parquet files predate the `raw_key` column and read it as NULL.
 - See [docs/OPERATIONS.md](docs/OPERATIONS.md#known-issues) for the full list.

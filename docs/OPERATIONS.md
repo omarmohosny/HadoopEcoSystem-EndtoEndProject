@@ -50,6 +50,12 @@ its scratch directory under `/user`. Without a TTY add `export TERM=dumb HADOOP_
 `spark-submit --master local[2] scripts/system_logs_curated.py --since YYYY-MM-DD`, then
 `scripts/system_logs_aggregates.py --since YYYY-MM-DD`. Both overwrite only the affected `event_date` partitions.
 
+### Install or update the systemd units
+After changing anything in `systemd/`, run `bash tests/test_systemd_units.sh` and `bash tests/test_install.sh`, then
+`sudo bash systemd/install.sh` and reboot to verify (procedure and expected results:
+[DEPLOYMENT-VERIFICATION.md](DEPLOYMENT-VERIFICATION.md)). Before a planned reboot, confirm `hdfs fsck /` is HEALTHY:
+unresolved corrupt blocks keep the NameNode in safe mode at boot.
+
 ### After a hard reset or reboot
 1. `systemctl status hadoop-hdfs`; if it failed, check `hdfs dfsadmin -safemode get` and the runbook above.
 2. Confirm the classifier lag returns to 0 and the Spark checkpoint advances.
@@ -62,9 +68,9 @@ its scratch directory under `/user`. Without a TTY add `export TERM=dumb HADOOP_
 ## Known issues
 | Issue | Impact | Status |
 |---|---|---|
-| Hand-started processes do not survive a reboot until `install.sh` is run | pipeline down after reboot | install needs root |
 | `dfs.datanode.synconclose` unset | a hard reset can leave zero-byte blocks | recommended: set to `true` |
-| Memory ≈ 1.5 GB available with the full stack | risk of OOM or reset | reduce heaps (e.g. `HADOOP_HEAPSIZE_MAX`) |
+| Memory ≈ 2.5 GB available with the full stack | risk of OOM or reset | reduce heaps (e.g. `HADOOP_HEAPSIZE_MAX`) |
+| Cause of the 2026-10-04 02:36 hard reset unknown | may recur | check `journalctl -b -1`, hypervisor logs |
 | Unrecognised log lines are logged `[SKIPPED]` and dropped | raw offset > sum of severity offsets | consider a dead-letter topic |
 | Keyword fallback can misclassify (a message containing "Warning" may land in `critical`) | noisy severity labels | heuristic by design |
 | `config/server.properties` defines `log.dirs`, `listeners` etc. twice (last value wins, `/tmp/kraft-combined-logs`) | confusing, but working | clean up carefully; never touch the data dir |
