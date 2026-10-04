@@ -10,6 +10,9 @@ Group=hadoop
 EnvironmentFile=/etc/hadoop-stack.env
 WorkingDirectory=/home/hadoop/kafka
 ExecStartPre=/bin/bash -c 'for i in $$(seq 1 90); do (echo > /dev/tcp/localhost/9092) 2>/dev/null && exit 0; sleep 2; done; echo "Kafka not reachable on 9092"; exit 1'
+# Wait until HDFS accepts writes (NameNode out of safe mode); fail clearly after 300s instead of
+# crash-looping. hadoop-hdfs no longer blocks on safe mode, so the dependents must.
+ExecStartPre=/bin/bash -c 'for i in $$(seq 1 60); do /home/hadoop/hadoop/bin/hdfs dfsadmin -safemode get 2>/dev/null | grep -q OFF && exit 0; sleep 5; done; echo "HDFS still in safe mode after 300s"; exit 1'
 ExecStart=/home/hadoop/spark/bin/spark-submit --master local[2] --driver-memory 1g --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.2.0 /home/hadoop/kafka/scripts/system_logs_to_hive.py
 PrivateTmp=no
 StandardOutput=append:/var/log/hadoop-stack/spark_system_logs.log
@@ -18,6 +21,8 @@ SuccessExitStatus=143
 TimeoutStopSec=90
 Restart=on-failure
 RestartSec=30
+# Kafka wait (180s) + safemode wait (300s) + margin
+TimeoutStartSec=540
 
 [Install]
 WantedBy=multi-user.target

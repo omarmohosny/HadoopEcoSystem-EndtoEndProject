@@ -11,6 +11,9 @@ Group=hadoop
 EnvironmentFile=/etc/hadoop-stack.env
 # Derby metastore is the relative path "metastore_db": must start from /home/hadoop
 WorkingDirectory=/home/hadoop
+# Wait until HDFS accepts writes (NameNode out of safe mode); fail clearly after 300s instead of
+# crash-looping. hadoop-hdfs no longer blocks on safe mode, so the dependents must.
+ExecStartPre=/bin/bash -c 'for i in $$(seq 1 60); do /home/hadoop/hadoop/bin/hdfs dfsadmin -safemode get 2>/dev/null | grep -q OFF && exit 0; sleep 5; done; echo "HDFS still in safe mode after 300s"; exit 1'
 ExecStart=/home/hadoop/hive/bin/hive --service hiveserver2
 PrivateTmp=no
 StandardOutput=append:/var/log/hadoop-stack/hiveserver2.out
@@ -19,6 +22,8 @@ SuccessExitStatus=143
 TimeoutStopSec=90
 Restart=on-failure
 RestartSec=20
+# safemode wait (300s) + margin
+TimeoutStartSec=360
 
 [Install]
 WantedBy=multi-user.target

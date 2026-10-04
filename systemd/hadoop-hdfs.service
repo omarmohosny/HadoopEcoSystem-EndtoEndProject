@@ -17,11 +17,14 @@ ExecStart=/home/hadoop/hadoop/bin/hdfs --daemon start secondarynamenode
 # NameNode RPC opens seconds after the daemon forks (slower at boot): wait for it first,
 # otherwise 'safemode wait' fails with Connection refused and systemd kills HDFS
 ExecStartPost=/bin/bash -c 'for i in $$(seq 1 90); do (echo > /dev/tcp/localhost/9000) 2>/dev/null && exit 0; sleep 2; done; echo "NameNode RPC not reachable on 9000"; exit 1'
-ExecStartPost=/home/hadoop/hadoop/bin/hdfs dfsadmin -safemode wait
+# Bounded and non-fatal: a stuck safe mode (e.g. corrupt blocks after a hard reset) must not
+# make systemd SIGTERM the NameNode/DataNode. '-' ignores the exit status (124 on timeout).
+ExecStartPost=-/usr/bin/timeout 120 /home/hadoop/hadoop/bin/hdfs dfsadmin -safemode wait
 ExecStop=/home/hadoop/hadoop/bin/hdfs --daemon stop secondarynamenode
 ExecStop=/home/hadoop/hadoop/bin/hdfs --daemon stop datanode
 ExecStop=/home/hadoop/hadoop/bin/hdfs --daemon stop namenode
-TimeoutStartSec=300
+# 180s port wait + 120s safemode wait + margin
+TimeoutStartSec=360
 TimeoutStopSec=180
 
 [Install]
