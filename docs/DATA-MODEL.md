@@ -43,18 +43,49 @@ Not de-duplicated. Location `hdfs://localhost:9000/user/hive/warehouse/system_lo
 | `raw_key` | string | `raw:<partition>:<offset>` of the raw-topic message; NULL on files written before the column existed |
 | `severity` (partition) | string | `normal`, `warning`, `error`, `critical`, `debug` |
 
+The four pipeline tables and the five severity partitions of `system_logs`. Captured from the live HiveServer2 on `hadoop-master` on 2026-10-05 (beeline as `hadoop`).
+
+![Pipeline tables and system_logs partitions](img/hive/01-tables-partitions.png)
+
+Raw volume per severity partition. Routine `info`/`notice` traffic (`normal`) is about 94% of all rows.
+
+![Row count per severity in system_logs](img/hive/02-volume-by-severity.png)
+
 ### `system_logs_curated`: de-duplicated and noise-free (partitioned by `event_date`, `severity`)
 Columns: `event_ts`, `raw_severity`, `hostname`, `program`, `service`, `source`, `message`, `source_format`,
 `kafka_topic`, `kafka_partition`, `kafka_offset`, `kafka_timestamp`, `raw_key`, `dedup_key`.
 `source` = `program`, else `service`, else `unknown`. `dedup_key` = `raw_key`, else
 `kafka:<topic>:<partition>:<offset>`.
 
+De-duplication check. `curated_rows` equals `distinct_dedup_keys`, so no duplicate is left in the curated layer.
+The 30,003 removed rows are replays of the same raw message plus the noise programs dropped by
+`system_logs_curated.py` (pipeline self-ingestion, `sudo`/`su`/`unix_chkpwd`).
+
+![Raw vs curated row counts and distinct dedup keys](img/hive/03-dedup-check.png)
+
+Latest real `error`/`critical` events in the curated layer (test markers excluded). They come from the VM boot at 01:45
+(VMware `vmblock` mount, SMBus controller, unmaintained SCSI drivers) and an rsyslog `imuxsock` restart at 02:00.
+
+![Latest error and critical events in system_logs_curated](img/hive/04-curated-errors.png)
+
 ### `system_logs_hourly` (partitioned by `event_date`)
 `event_hour`, `severity`, `source`, `hostname`, `event_count`, `first_seen`, `last_seen`.
+
+Events per hour and severity for the latest day. The 01:00 hour (6,661 events) holds the boot burst; 02:00 is the
+partial hour before the last aggregate run.
+
+![Hourly event counts per severity](img/hive/05-hourly.png)
 
 ### `system_logs_daily_sources` (partitioned by `event_date`)
 `source`, `total_events`, `error_events` (error + critical), `critical_events`, `warning_events`,
 `error_rate` (error_events / total_events), `error_rank` (1 = most errors that day).
+
+Top sources by error count for the latest day. `kernel` has the most errors but a low rate (0.7%), while
+`setroubleshoot` and `alsactl` fail on about half of their messages. `omarmohosny` is the end-to-end test
+(`logger` tags messages with the user name). `gdm-password]` is the program name exactly as rsyslog reports it
+(`program=gdm-password]` in `raw_payload`), not a parsing error.
+
+![Top error sources from system_logs_daily_sources](img/hive/06-daily-sources.png)
 
 ## Example queries
 

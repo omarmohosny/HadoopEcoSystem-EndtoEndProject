@@ -31,6 +31,16 @@ bash tests/test_stack.sh                         # needs the stack installed und
 ```
 The bash suites print `PASS`/`FAIL` per check and `RESULT: n passed, m failed`, and exit non-zero on any failure.
 
+## End-to-end evidence in Hive
+`tests/test_stack.sh` writes one marker per syslog level with `logger` (`STACKTEST_<HHMMSS>_<level>`) and waits for each
+in Hive. The snapshot below shows one run (`STACKTEST_023028`), captured from the live HiveServer2 on 2026-10-05:
+
+- every level landed in the right partition and severity topic (`err` → `error`, `crit` → `critical`, `info` → `normal`);
+- `raw_key` values `raw:0:35723` to `raw:0:35727` are consecutive and follow the send order (info, warning, err, crit,
+  debug), so each row traces back to its exact message in `system-logs-raw`.
+
+![STACKTEST markers traced from Hive back to Kafka](img/hive/07-end-to-end-trace.png)
+
 ## Do the tests actually bite? (mutation checks)
 A test that passes on broken code is worthless, so the infrastructure tests were run against deliberately broken copies:
 
